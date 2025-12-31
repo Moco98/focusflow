@@ -1,0 +1,5 @@
+{
+  "name": "FocusFlow",
+  "description": "A comprehensive productivity suite combining a customizable Pomodoro timer with Bilibili integration, a hierarchical goal tracking system, calendar visualization, and detailed analytics.",
+  "requestFramePermissions": []
+}
