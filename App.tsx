@@ -123,7 +123,14 @@ const App: React.FC = () => {
       if (g.id === goalId) {
         return {
           ...g,
-          tasks: [...g.tasks, { ...task, id: crypto.randomUUID(), parentId: goalId, subtasks: [], isCompleted: false }]
+          tasks: [...g.tasks, { 
+              ...task, 
+              id: crypto.randomUUID(), 
+              parentId: goalId, 
+              subtasks: [], 
+              isCompleted: false,
+              totalTimeSpent: 0 // Initialize total time spent
+          }]
         };
       }
       return g;
@@ -252,16 +259,37 @@ const App: React.FC = () => {
 
   const handleSessionComplete = (session: FocusSession) => {
     setSessions(prev => [...prev, session]);
-    if (session.subtaskId) {
-       setGoals(goals.map(g => {
+    
+    // Update goal > task > (optional) subtask with new time
+    setGoals(goals.map(g => {
          if (g.id === session.goalId) {
            return {
              ...g,
              tasks: g.tasks.map(t => {
                if (t.id === session.taskId) {
+                 
+                 // 1. Calculate new total time for the main task
+                 const currentTotal = t.totalTimeSpent || 0;
+                 const newTotal = currentTotal + session.durationMinutes;
+
+                 // 2. Check if this task is now completed (for Time-based tasks)
+                 let isCompleted = t.isCompleted;
+                 if (t.type === 'time' && t.targetDurationMinutes) {
+                    isCompleted = newTotal >= t.targetDurationMinutes;
+                 }
+
+                 // 3. Update Subtask if applicable
+                 let updatedSubtasks = t.subtasks;
+                 if (session.subtaskId) {
+                    updatedSubtasks = t.subtasks.map(s => s.id === session.subtaskId ? { ...s, totalTimeSpent: s.totalTimeSpent + session.durationMinutes } : s);
+                 }
+
                  return {
                    ...t,
-                   subtasks: t.subtasks.map(s => s.id === session.subtaskId ? { ...s, totalTimeSpent: s.totalTimeSpent + session.durationMinutes } : s)
+                   totalTimeSpent: newTotal,
+                   isCompleted,
+                   completedAt: isCompleted && !t.isCompleted ? Date.now() : t.completedAt, // Set completedAt if just finished
+                   subtasks: updatedSubtasks
                  };
                }
                return t;
@@ -269,8 +297,7 @@ const App: React.FC = () => {
            };
          }
          return g;
-       }));
-    }
+    }));
   };
 
   const handleSaveLog = (log: DailyLog) => {

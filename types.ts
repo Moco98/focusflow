@@ -33,6 +33,7 @@ export interface Task {
   // Tracking
   isCompleted: boolean;
   completedAt?: number;
+  totalTimeSpent?: number; // accumulated focus time in minutes
 }
 
 export interface Subtask {

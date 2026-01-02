@@ -28,6 +28,7 @@ const generateMockData = () => {
           period: 'day',
           subtasks: [],
           isCompleted: false, // Not started
+          totalTimeSpent: 0
         },
         {
           id: uuidv4(),
@@ -40,6 +41,7 @@ const generateMockData = () => {
             { id: uuidv4(), parentId: '', title: 'Blog Platform', isCompleted: false, totalTimeSpent: 0 },
           ],
           isCompleted: false, // Not started
+          totalTimeSpent: 0
         }
       ]
     },
@@ -58,6 +60,7 @@ const generateMockData = () => {
           period: 'week',
           subtasks: [],
           isCompleted: false, // Not started
+          totalTimeSpent: 0
         }
       ]
     }

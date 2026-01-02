@@ -230,7 +230,11 @@ const GoalTree: React.FC<GoalTreeProps> = ({
             totalProgress += (done / t.subtasks.length);
         }
       } else {
-        totalProgress += t.isCompleted ? 1 : 0; 
+        // Time based task logic
+        const target = t.targetDurationMinutes || 60;
+        const current = t.totalTimeSpent || 0;
+        // Cap progress at 1 (100%) for calculation, even if user exceeds time
+        totalProgress += Math.min(1, current / target);
       }
     });
     return Math.round((totalProgress / Math.max(goal.tasks.length, 1)) * 100);
@@ -479,7 +483,9 @@ const GoalTree: React.FC<GoalTreeProps> = ({
                         <div className="min-w-0">
                             <h4 className="font-bold text-brand-noir dark:text-white text-lg truncate">{task.title}</h4>
                             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                                {task.type === 'time' ? `${task.targetDurationMinutes}m • ${task.period}` : `${task.subtasks.filter(s => s.isCompleted).length} / ${task.subtasks.length} items`}
+                                {task.type === 'time' 
+                                  ? `${task.totalTimeSpent || 0} / ${task.targetDurationMinutes}m • ${task.period}` 
+                                  : `${task.subtasks.filter(s => s.isCompleted).length} / ${task.subtasks.length} items`}
                             </p>
                         </div>
                     </div>
