@@ -13,9 +13,20 @@ interface StatisticsDashboardProps {
   sessions: FocusSession[];
   goals: Goal[];
   userProfile: UserProfile;
+  isDarkMode: boolean;
 }
 
-const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({ sessions, goals, userProfile }) => {
+// Map goal color keys to actual hex codes for the chart
+const THEME_COLORS: Record<string, { light: string, dark: string }> = {
+    'clean': { light: '#111010', dark: '#FFFFFF' }, // Default Black/White
+    'warm':  { light: '#D97706', dark: '#FCD34D' }, // Amber
+    'rose':  { light: '#DB2777', dark: '#F9A8D4' }, // Pink
+    'fresh': { light: '#059669', dark: '#6EE7B7' }, // Emerald
+    'calm':  { light: '#2563EB', dark: '#93C5FD' }, // Blue
+    'stone': { light: '#57534E', dark: '#D6D3D1' }, // Stone
+};
+
+const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({ sessions, goals, userProfile, isDarkMode }) => {
   const [range, setRange] = useState<'week' | 'month' | 'year'>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   
@@ -107,7 +118,7 @@ const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({ sessions, goa
       return (
         <div className="bg-white/95 dark:bg-[#1E1E1E]/95 backdrop-blur-sm px-3 py-2 rounded-xl shadow-xl border border-gray-100 dark:border-white/10 pointer-events-none">
              <div className="flex flex-col">
-                <span className="text-xs font-extrabold text-gray-900 dark:text-white leading-tight mb-0.5">{data.name}</span>
+                <span className="text-xs font-extrabold text-gray-900 dark:text-white leading-tight mb-0.5" style={{ color: data.color }}>{data.name}</span>
                 <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400">
                    {data.value} {labels.mins}
                 </span>
@@ -171,11 +182,16 @@ const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({ sessions, goa
     // Total Time
     const totalTime = rangeSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
 
-    // Goal Comparison Data (Focus Time)
+    // Goal Comparison Data (Focus Time) - NOW WITH COLOR MAPPING
     const goalTimeComparison = goals.map(g => {
         const goalSessions = rangeSessions.filter(s => s.goalId === g.id);
         const minutes = goalSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
-        return { name: g.title, value: minutes };
+        
+        // Resolve Color based on current mode
+        const theme = THEME_COLORS[g.color || 'clean'] || THEME_COLORS['clean'];
+        const color = isDarkMode ? theme.dark : theme.light;
+
+        return { name: g.title, value: minutes, color: color };
     }).filter(d => d.value > 0).sort((a, b) => b.value - a.value); // Sort descending
 
     // Specific Metrics based on View (Year vs Week/Month)
@@ -269,9 +285,7 @@ const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({ sessions, goa
         goalIncrements
     };
 
-  }, [sessions, goals, range, currentDate, locale]);
-
-  const COLORS = ['#FBBF24', '#3B82F6', '#10B981', '#F472B6', '#8B5CF6', '#EF4444', '#8B5CF6'];
+  }, [sessions, goals, range, currentDate, locale, isDarkMode]);
 
   return (
     <div className="h-full flex flex-col p-8 overflow-hidden">
@@ -437,7 +451,7 @@ const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({ sessions, goa
                                     cursor="pointer"
                                 >
                                     {data.goalTimeComparison.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
+                                        <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                                     ))}
                                 </Pie>
                                 <ReTooltip content={<CustomTooltip />} />
@@ -458,7 +472,7 @@ const StatisticsDashboard: React.FC<StatisticsDashboardProps> = ({ sessions, goa
                                     onClick={() => setActiveIndex(prev => prev === index ? undefined : index)}
                                 >
                                     <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                                        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: entry.color }}></div>
                                         <span className={`text-sm font-bold truncate ${activeIndex === index ? 'text-black dark:text-white' : 'text-gray-700 dark:text-gray-200'}`}>{entry.name}</span>
                                     </div>
                                     <div className="text-xs font-bold bg-white dark:bg-black/20 px-2 py-1 rounded-md text-gray-500 dark:text-gray-400">

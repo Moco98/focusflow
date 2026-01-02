@@ -378,6 +378,7 @@ const App: React.FC = () => {
                 sessions={sessions}
                 goals={goals}
                 userProfile={userProfile}
+                isDarkMode={isDarkMode}
             />
             )}
         </div>
