@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { eachDayOfInterval, format, endOfMonth, endOfWeek, isSameDay, getDay, addMonths, addYears, startOfMonth, startOfWeek } from 'date-fns';
 import { zhCN, enUS } from 'date-fns/locale';
@@ -99,16 +100,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({ sessions, logs, goals, user
   };
 
   // Opacity based on intensity using "Soleil" colors:
-  // #FFF5D6, #FFEBAD, #FFE085, #FFD65C, #FFCC33
+  // Target is 12 hours (720 minutes) for 100% opacity.
   const getIntensityStyle = (minutes: number) => {
-      // Changed: Return empty for 0 to let Tailwind classes handle background (Dark mode support)
       if (minutes === 0) return {}; 
       
-      if (minutes < 30) return { backgroundColor: '#FFF5D6' };
-      if (minutes < 60) return { backgroundColor: '#FFEBAD' };
-      if (minutes < 120) return { backgroundColor: '#FFE085' };
-      if (minutes < 180) return { backgroundColor: '#FFD65C' };
-      return { backgroundColor: '#FFCC33' };
+      const maxMinutes = 720; // 12 Hours
+      // Calculate ratio. Cap at 1.0.
+      const rawRatio = minutes / maxMinutes;
+      // We set a floor of 0.1 so that even 1 minute is slightly visible, 
+      // but otherwise it scales linearly up to 12 hours.
+      const opacity = Math.min(Math.max(rawRatio, 0.1), 1); 
+      
+      return { backgroundColor: `rgba(255, 204, 51, ${opacity})` };
   };
 
   return (
@@ -150,21 +153,25 @@ const CalendarView: React.FC<CalendarViewProps> = ({ sessions, logs, goals, user
                         ? 'scale-[1.02] shadow-md z-10 font-bold bg-white dark:bg-[#3C3C3E]' 
                         : '';
 
-                    // Determine text color: 
-                    // Today: Adaptive Black/White
-                    // Heatmap (minutes > 0): Always Dark (as bg is light yellow)
-                    // Empty: Adaptive Gray
-                    const textClass = isToday 
-                        ? 'text-black dark:text-white' 
-                        : minutes > 0 
-                            ? 'text-[#111010]' 
-                            : 'text-gray-700 dark:text-gray-300';
+                    // Determine text color based on opacity intensity
+                    // If opacity is high (> 0.5), background is bright yellow -> Use Black text.
+                    // If opacity is low (< 0.5), background is transparent.
+                    //    - Light Mode: Transparent Yellow on White -> Black text is fine.
+                    //    - Dark Mode: Transparent Yellow on Dark Gray -> White text is needed.
+                    const ratio = Math.min(minutes / 720, 1);
+                    const isHighIntensity = ratio > 0.5;
+
+                    const textClass = minutes > 0 
+                            ? (isHighIntensity ? 'text-[#111010] font-bold' : 'text-gray-900 dark:text-white font-medium')
+                            : isToday 
+                                ? 'text-black dark:text-white' 
+                                : 'text-gray-700 dark:text-gray-500';
 
                     return (
                         <div 
                             key={day.toISOString()}
                             onClick={() => setSelectedDate(day)}
-                            style={isToday ? {} : intensityStyle} // Let active class handle today bg
+                            style={intensityStyle}
                             className={`
                                 relative rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 group
                                 ${isToday ? '' : 'bg-gray-50 dark:bg-white/5'}
@@ -172,7 +179,6 @@ const CalendarView: React.FC<CalendarViewProps> = ({ sessions, logs, goals, user
                                 ${todayClasses}
                             `}
                         >
-                            {/* Font size reduced to text-xs */}
                             <span className={`text-xs ${textClass}`}>
                                 {format(day, 'd')}
                             </span>
