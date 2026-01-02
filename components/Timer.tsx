@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, MonitorPlay, Maximize2, X, Music2, Plus, Minus, Eye, EyeOff, Volume2, Film } from 'lucide-react';
+import { Play, Pause, RotateCcw, X, Music2, Plus, Minus, Eye, EyeOff, Film, Square } from 'lucide-react';
 import { FocusSession, Goal, Task, Subtask } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -40,7 +41,6 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
   const [inputBvid, setInputBvid] = useState(''); // Temporary state for input
   
   const [showBilibiliInput, setShowBilibiliInput] = useState(false);
-  const [startTime, setStartTime] = useState<number | null>(null);
   const [cinemaMode, setCinemaMode] = useState(false); // Toggle between Clean UI and Immersive Video
 
   const intervalRef = useRef<number | null>(null);
@@ -52,16 +52,12 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
     }
   }, []);
 
+  // Timer Interval Logic
   useEffect(() => {
     if (isActive) {
-      if (!startTime) setStartTime(Date.now());
-      
       intervalRef.current = window.setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleComplete();
-            return 0;
-          }
+          if (prev <= 0) return 0;
           return prev - 1;
         });
       }, 1000);
@@ -72,6 +68,13 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isActive]);
+
+  // Check for completion (Natural End)
+  useEffect(() => {
+    if (timeLeft === 0 && isActive) {
+        handleComplete(initialTime); // Elapsed time is full duration
+    }
+  }, [timeLeft, isActive, initialTime]);
 
   const sendNotification = (title: string, body: string) => {
     if ("Notification" in window) {
@@ -93,7 +96,7 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
     }
   };
 
-  // Reliable pleasant melody using Web Audio API (approx 5-6 seconds)
+  // Reliable pleasant melody using Web Audio API
   const playAlarm = () => {
     try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -102,7 +105,6 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
         const ctx = new AudioContext();
         
         // A pleasant "Dreamy" Major 9th Arpeggio to signal success
-        // Sequence: C5 -> E5 -> G5 -> B5 -> D6 (High pleasant resolve)
         const notes = [
             { freq: 523.25, delay: 0.0, duration: 3.0 },    // C5 (Root)
             { freq: 659.25, delay: 0.5, duration: 3.0 },    // E5
@@ -118,7 +120,6 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
             osc.connect(gain);
             gain.connect(ctx.destination);
             
-            // Sine wave for smooth, bell-like tone
             osc.type = 'sine'; 
             osc.frequency.value = freq;
             
@@ -126,11 +127,8 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
             const startTime = now + delay;
             const stopTime = startTime + duration;
 
-            // Gentle Attack (no clicking)
             gain.gain.setValueAtTime(0, startTime);
             gain.gain.linearRampToValueAtTime(0.2, startTime + 0.1);
-            
-            // Slow Exponential Decay for resonance/sustain effect
             gain.gain.exponentialRampToValueAtTime(0.001, stopTime);
             
             osc.start(startTime);
@@ -142,39 +140,51 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
     }
   };
 
-  const handleComplete = () => {
+  // Main Completion Handler
+  // elapsedSeconds: Exact seconds spent focused
+  const handleComplete = (elapsedSeconds: number) => {
     setIsActive(false);
     
-    // Play the pleasant chime
-    playAlarm();
+    const durationMinutes = Math.round(elapsedSeconds / 60);
 
-    // Send Browser Notification
-    const title = activeTask ? "Focus Session Complete!" : "Time's Up!";
-    const body = activeTask 
-      ? `You've completed your session for "${activeTask.title}". Time to stretch!` 
-      : "Your timer has finished. Take a break to avoid sitting too long!";
-    
-    sendNotification(title, body);
+    // Filter out very short sessions (misclicks), unless it was a 1-minute timer that finished
+    const isValidSession = durationMinutes >= 1;
 
-    if (activeGoal && activeTask && startTime) {
-      const endTime = Date.now();
-      const durationMinutes = Math.round((endTime - startTime) / 1000 / 60);
-      
-      const session: FocusSession = {
-        id: uuidv4(),
-        goalId: activeGoal.id,
-        taskId: activeTask.id,
-        subtaskId: activeSubtask?.id,
-        startTime,
-        endTime,
-        durationMinutes: durationMinutes || 1, // Minimum 1 min
-        note: 'Pomodoro Session'
-      };
-      onSessionComplete(session);
-      
-      setTimeLeft(initialTime); // Reset to base time
-      setStartTime(null);
+    if (isValidSession) {
+        // Play the pleasant chime
+        playAlarm();
+
+        // Send Browser Notification
+        const title = activeTask ? "Focus Session Complete!" : "Session Recorded";
+        const body = activeTask 
+        ? `You've focused for ${durationMinutes} mins on "${activeTask.title}". Great job!` 
+        : `You've recorded ${durationMinutes} mins of focus time.`;
+        
+        sendNotification(title, body);
+
+        if (activeGoal && activeTask) {
+            const now = Date.now();
+            // Calculate start time based on duration for accurate logging
+            const startTime = now - (elapsedSeconds * 1000);
+            
+            const session: FocusSession = {
+                id: uuidv4(),
+                goalId: activeGoal.id,
+                taskId: activeTask.id,
+                subtaskId: activeSubtask?.id,
+                startTime,
+                endTime: now,
+                durationMinutes: durationMinutes,
+                note: 'Pomodoro Session'
+            };
+            onSessionComplete(session);
+        }
+    } else {
+        // If too short, just reset silently
     }
+    
+    // Always reset timer to initial state after processing
+    resetTimer();
   };
 
   const toggleTimer = () => {
@@ -198,7 +208,16 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
   const resetTimer = () => {
     setIsActive(false);
     setTimeLeft(initialTime);
-    setStartTime(null);
+  };
+
+  const handleStopEarly = () => {
+      const elapsed = initialTime - timeLeft;
+      // If elapsed is less than 60s, we discard it as accidental
+      if (elapsed < 60) {
+          resetTimer();
+      } else {
+          handleComplete(elapsed);
+      }
   };
 
   const adjustTime = (minutes: number) => {
@@ -220,7 +239,6 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
           setBvid(inputBvid.trim());
           setShowBilibiliInput(false);
       } else {
-          // If empty, clear it (reset to solid color)
           setBvid('');
           setShowBilibiliInput(false);
       }
@@ -258,7 +276,7 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
             </button>
 
            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold uppercase tracking-widest shadow-sm transition-colors duration-500 ${cinemaMode ? 'bg-black/50 border-white/20 text-white' : 'bg-white dark:bg-white/10 border-white/50 text-gray-900 dark:text-white'}`}>
-             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+             <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`}></div>
              {activeTask ? 'Focus Task' : 'Free Focus'}
            </div>
            
@@ -306,12 +324,25 @@ const Timer: React.FC<TimerProps> = ({ taskId, subtaskId, goals, onSessionComple
 
         {/* Controls */}
         <div className={`flex items-center gap-8 mb-8 transition-opacity duration-500 ${cinemaMode && isActive ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
-          <button
-            onClick={resetTimer}
-            className={`w-16 h-16 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${cinemaMode ? 'bg-white/20 text-white backdrop-blur-md' : 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white hover:bg-gray-200'}`}
-          >
-            <RotateCcw size={24} />
-          </button>
+          {/* Left Button: Stop (if started) or Reset (if not) */}
+          {timeLeft !== initialTime ? (
+              <button
+                onClick={handleStopEarly}
+                className={`w-16 h-16 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${cinemaMode ? 'bg-white/20 text-white backdrop-blur-md' : 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30'}`}
+                title="Stop & Save Progress"
+              >
+                <Square size={24} fill="currentColor" />
+              </button>
+          ) : (
+              <button
+                onClick={resetTimer}
+                disabled={isActive}
+                className={`w-16 h-16 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${cinemaMode ? 'bg-white/20 text-white backdrop-blur-md' : 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white hover:bg-gray-200'} ${isActive ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Reset"
+              >
+                <RotateCcw size={24} />
+              </button>
+          )}
           
           <button
             onClick={toggleTimer}
