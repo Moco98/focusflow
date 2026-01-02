@@ -100,16 +100,19 @@ const CalendarView: React.FC<CalendarViewProps> = ({ sessions, logs, goals, user
   };
 
   // Opacity based on intensity using "Soleil" colors:
-  // Target is 12 hours (720 minutes) for 100% opacity.
+  // Target is 8 hours (480 minutes) for 100% opacity.
+  // 12 hours was too hard to fill visually.
   const getIntensityStyle = (minutes: number) => {
       if (minutes === 0) return {}; 
       
-      const maxMinutes = 720; // 12 Hours
-      // Calculate ratio. Cap at 1.0.
-      const rawRatio = minutes / maxMinutes;
-      // We set a floor of 0.1 so that even 1 minute is slightly visible, 
-      // but otherwise it scales linearly up to 12 hours.
-      const opacity = Math.min(Math.max(rawRatio, 0.1), 1); 
+      const maxMinutes = 480; // 8 Hours target for full saturation
+      // Calculate basic ratio (0 to 1)
+      const ratio = Math.min(minutes / maxMinutes, 1);
+      
+      // Calculate final opacity:
+      // Start at 0.2 (20%) so it's clearly visible if there is ANY data.
+      // Scale the remaining 0.8 based on time.
+      const opacity = 0.2 + (ratio * 0.8);
       
       return { backgroundColor: `rgba(255, 204, 51, ${opacity})` };
   };
@@ -150,16 +153,17 @@ const CalendarView: React.FC<CalendarViewProps> = ({ sessions, logs, goals, user
                     // Conditional classes for Today vs Normal days
                     // Today: scale-[1.02] (very subtle), shadow-md, slightly thicker font
                     const todayClasses = isToday 
-                        ? 'scale-[1.02] shadow-md z-10 font-bold bg-white dark:bg-[#3C3C3E]' 
+                        ? 'scale-[1.02] shadow-md z-10 font-bold dark:bg-[#3C3C3E]' 
                         : '';
+                    
+                    // Force white bg for today only if no data, otherwise let heatmap shine
+                    const todayBg = (isToday && minutes === 0) ? 'bg-white' : '';
 
                     // Determine text color based on opacity intensity
                     // If opacity is high (> 0.5), background is bright yellow -> Use Black text.
                     // If opacity is low (< 0.5), background is transparent.
-                    //    - Light Mode: Transparent Yellow on White -> Black text is fine.
-                    //    - Dark Mode: Transparent Yellow on Dark Gray -> White text is needed.
-                    const ratio = Math.min(minutes / 720, 1);
-                    const isHighIntensity = ratio > 0.5;
+                    const ratio = Math.min(minutes / 480, 1);
+                    const isHighIntensity = (0.2 + (ratio * 0.8)) > 0.6; // Threshold for text contrast
 
                     const textClass = minutes > 0 
                             ? (isHighIntensity ? 'text-[#111010] font-bold' : 'text-gray-900 dark:text-white font-medium')
@@ -174,7 +178,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ sessions, logs, goals, user
                             style={intensityStyle}
                             className={`
                                 relative rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all duration-300 group
-                                ${isToday ? '' : 'bg-gray-50 dark:bg-white/5'}
+                                ${isToday ? todayBg : 'bg-gray-50 dark:bg-white/5'}
                                 ${!isCurrentMonth ? 'pointer-events-none' : 'hover:scale-[1.05] hover:shadow-md hover:z-20'}
                                 ${todayClasses}
                             `}
